@@ -8,8 +8,10 @@ const app = express();
 
 const OWNER_ID = '1436539795340922922';
 const NEKO_ID = '1248205177589334026';
+
 let dictionary = new Set();
-let channelData = new Map();
+// Map này cực quan trọng: Lưu biệt lập trạng thái từng kênh
+let channelData = new Map(); 
 
 const SOURCES = [
     'https://raw.githubusercontent.com/c5least011/botgoiynoitu/refs/heads/main/data.json',
@@ -38,7 +40,7 @@ async function loadDict() {
             });
         } catch (err) { console.log(`Lỗi: ${url}`); }
     }
-    console.log(`✅ Tổng: ${dictionary.size} từ.`);
+    console.log(`✅ Tổng kho: ${dictionary.size} từ dùng chung.`);
 }
 
 function solve(chars, length) {
@@ -57,21 +59,23 @@ function solve(chars, length) {
 client.on('messageCreate', async (msg) => {
     const channelId = msg.channel.id;
 
+    // Khởi tạo bộ nhớ riêng cho kênh nếu lần đầu bắt được tin nhắn
     if (!channelData.has(channelId)) {
         channelData.set(channelId, { isRunning: false, failCount: 0 });
     }
 
     let data = channelData.get(channelId);
 
+    // Lệnh điều khiển riêng biệt
     if (msg.author.id === OWNER_ID) {
         if (msg.content === '.start') { 
             data.isRunning = true;
-            data.failCount = 0;
-            return msg.reply(`Kênh ${channelId} đã được kích hoạt!`); 
+            data.failCount = 0; // Reset riêng cho kênh này
+            return msg.reply(`Kênh ${msg.channel.name} khởi động!`); 
         }
         if (msg.content === '.stop') { 
             data.isRunning = false;
-            return msg.reply('Đã dừng farm ở kênh này.'); 
+            return msg.reply(`Kênh ${msg.channel.name} tạm nghỉ.`); 
         }
     }
 
@@ -90,23 +94,24 @@ client.on('messageCreate', async (msg) => {
             const answer = solve(charMatch[1], parseInt(lengthMatch[1]));
             
             if (answer) {
-                // ĐÚNG LÀ RECOUNT NGAY LẬP TỨC
+                // CHỈ RECOUNT CHO KÊNH NÀY
                 data.failCount = 0; 
-                console.log(`[${msg.channel.name}] ĐÚNG -> Recount! Đáp án: ${answer}`);
+                console.log(`[${msg.channel.name}] ĐÚNG -> Recount về 0. Đáp án: ${answer}`);
                 setTimeout(() => { msg.channel.send(answer); }, 2000);
             } else {
-                // SAI/KHÔNG BIẾT THÌ MỚI CỘNG DỒN
+                // CHỈ TĂNG FAIL CHO KÊNH NÀY
                 data.failCount++;
-                console.log(`[${msg.channel.name}] Xịt lần: ${data.failCount}/5`);
+                console.log(`[${msg.channel.name}] XỊT lần ${data.failCount}/5`);
                 
                 setTimeout(() => {
                     msg.channel.send('bỏ qua');
                     
                     if (data.failCount >= 5) {
-                        data.failCount = 0; // Reset để đợi chuỗi 5 lần mới tiếp theo
-                        console.log(`[${msg.channel.name}] Đã xịt 5 lần liên tiếp. Đợi 1p...`);
+                        data.failCount = 0; // Reset đếm để chuẩn bị cho chuỗi 1p mới
+                        console.log(`[${msg.channel.name}] Đợi 1p gửi start!...`);
                         setTimeout(() => { 
-                            msg.channel.send('start!'); 
+                            // Check lại xem trong 1p chờ m có bấm .stop kênh đó k
+                            if (data.isRunning) msg.channel.send('start!'); 
                         }, 60000);
                     }
                 }, 1500);
@@ -115,7 +120,7 @@ client.on('messageCreate', async (msg) => {
     }
 });
 
-app.get('/', (req, res) => res.send('Bot Vua Tiếng Việt - Recount Logic Ready!'));
+app.get('/', (req, res) => res.send('Bot live đa kênh, recount riêng biệt!'));
 app.listen(process.env.PORT || 3000);
 
 loadDict().then(() => client.login(process.env.DISCORD_TOKEN));
