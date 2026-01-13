@@ -10,6 +10,7 @@ const OWNER_ID = '1436539795340922922';
 const NEKO_ID = '1248205177589334026';
 let isRunning = false;
 let dictionary = new Set();
+let failCount = 0; // Bộ đếm số lần không giải được
 
 const SOURCES = [
     'https://raw.githubusercontent.com/c5least011/botgoiynoitu/refs/heads/main/data.json',
@@ -42,7 +43,6 @@ async function loadDict() {
 }
 
 function solve(chars, length) {
-    // Xóa sạch ** và / của Neko để ko bị lệch anagram
     const cleanChars = chars.replace(/\*/g, '').replace(/\//g, '').toLowerCase();
     const targetSorted = cleanChars.split('').sort().join('');
     
@@ -57,8 +57,15 @@ function solve(chars, length) {
 
 client.on('messageCreate', async (msg) => {
     if (msg.author.id === OWNER_ID) {
-        if (msg.content === '.start') { isRunning = true; return msg.reply('ON!'); }
-        if (msg.content === '.stop') { isRunning = false; return msg.reply('OFF!'); }
+        if (msg.content === '.start') { 
+            isRunning = true; 
+            failCount = 0;
+            return msg.reply('ON!'); 
+        }
+        if (msg.content === '.stop') { 
+            isRunning = false; 
+            return msg.reply('OFF!'); 
+        }
     }
 
     if (!isRunning) return;
@@ -74,8 +81,27 @@ client.on('messageCreate', async (msg) => {
 
         if (charMatch && lengthMatch) {
             const answer = solve(charMatch[1], parseInt(lengthMatch[1]));
-            console.log(`Debug: ${charMatch[1]} -> ${answer || 'Bỏ qua'}`);
-            setTimeout(() => { msg.channel.send(answer || 'bỏ qua'); }, 2000);
+            
+            if (answer) {
+                failCount = 0; // Giải được thì reset đếm
+                console.log(`Debug: ${charMatch[1]} -> ${answer}`);
+                setTimeout(() => { msg.channel.send(answer); }, 2000);
+            } else {
+                failCount++; // Ko giải được thì tăng 1
+                console.log(`Debug: Không biết. Lần xịt: ${failCount}`);
+                
+                setTimeout(() => {
+                    msg.channel.send('bỏ qua');
+                    
+                    // Nếu xịt đủ 5 lần thì nhắn start!
+                    if (failCount >= 5) {
+                        failCount = 0;
+                        setTimeout(() => {
+                            msg.channel.send('start!');
+                        }, 2000);
+                    }
+                }, 1500);
+            }
         }
     }
 });
