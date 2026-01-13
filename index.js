@@ -20,44 +20,33 @@ const SOURCES = [
 ];
 
 async function loadDict() {
-    console.log('--- Đang quét kho vũ khí hạng nặng ---');
+    console.log('--- Quét kho vũ khí ---');
     for (const url of SOURCES) {
         try {
             const res = await axios.get(url, { responseType: 'text' });
-            // Tách từng dòng để xử lý y hệt con bot cũ của m
             const lines = res.data.split(/\r?\n/);
-            
             lines.forEach(line => {
                 if (!line.trim()) return;
-                
                 try {
-                    // Ưu tiên parse kiểu JSON từng dòng (đúng định dạng ảnh m gửi)
                     const obj = JSON.parse(line.replace(/“|”/g, '"'));
-                    let text = obj.text || obj.word || ""; 
-                    if (typeof obj === 'string') text = obj; // Trường hợp JSON array đơn giản
-
-                    if (text) {
-                        let clean = text.trim().toLowerCase();
-                        if (clean.length > 1) dictionary.add(clean);
-                    }
+                    let text = obj.text || obj.word || (typeof obj === 'string' ? obj : "");
+                    if (text) dictionary.add(text.trim().toLowerCase());
                 } catch (e) {
-                    // Nếu k phải JSON (file txt thuần) thì lấy nguyên dòng
                     let clean = line.trim().toLowerCase();
                     if (clean.length > 1 && !clean.startsWith('{')) dictionary.add(clean);
                 }
             });
-            console.log(`✅ Đã nạp xong source: ${url.split('/').pop()}`);
-        } catch (err) { console.log(`❌ Lỗi nạp source: ${url}`); }
+        } catch (err) { console.log(`Lỗi: ${url}`); }
     }
-    console.log(`🚀 Tổng kho: ${dictionary.size} từ. Đã sẵn sàng thông nòng!`);
+    console.log(`✅ Tổng: ${dictionary.size} từ.`);
 }
 
 function solve(chars, length) {
-    // Neko gửi ề/n/n/ô/i/đ -> gộp lại thành ennôiđ -> sort alphabet
-    const targetSorted = chars.replace(/\//g, '').toLowerCase().split('').sort().join('');
+    // Xóa sạch ** và / của Neko để ko bị lệch anagram
+    const cleanChars = chars.replace(/\*/g, '').replace(/\//g, '').toLowerCase();
+    const targetSorted = cleanChars.split('').sort().join('');
     
     for (let word of dictionary) {
-        // Vua Tiếng Việt tính độ dài k kèm dấu cách
         let noSpace = word.replace(/\s+/g, '');
         if (noSpace.length === length) {
             if (noSpace.split('').sort().join('') === targetSorted) return word;
@@ -68,8 +57,8 @@ function solve(chars, length) {
 
 client.on('messageCreate', async (msg) => {
     if (msg.author.id === OWNER_ID) {
-        if (msg.content === '.start') { isRunning = true; return msg.reply('Vua Tiếng Việt START!'); }
-        if (msg.content === '.stop') { isRunning = false; return msg.reply('Vua Tiếng Việt STOP!'); }
+        if (msg.content === '.start') { isRunning = true; return msg.reply('ON!'); }
+        if (msg.content === '.stop') { isRunning = false; return msg.reply('OFF!'); }
     }
 
     if (!isRunning) return;
@@ -79,24 +68,18 @@ client.on('messageCreate', async (msg) => {
         content = msg.embeds[0].description;
     }
 
-    // Regex hốt cụm ký tự (bao gồm cả dấu tiếng Việt)
     if (msg.author.id === NEKO_ID && content.includes('Từ cần đoán:')) {
-        const charMatch = content.match(/Từ cần đoán: ([^\s\n(]+)/i);
+        const charMatch = content.match(/Từ cần đoán:\s*([^\s\n(]+)/i);
         const lengthMatch = content.match(/\(gồm (\d+) ký tự\)/);
 
         if (charMatch && lengthMatch) {
             const answer = solve(charMatch[1], parseInt(lengthMatch[1]));
-            console.log(`[Giải đố] Ký tự: ${charMatch[1]} -> Kết quả: ${answer || 'Chịu'}`);
-            
-            setTimeout(() => {
-                msg.channel.send(answer || 'bỏ qua');
-            }, 1000 + Math.random() * 1000);
+            console.log(`Debug: ${charMatch[1]} -> ${answer || 'Bỏ qua'}`);
+            setTimeout(() => { msg.channel.send(answer || 'bỏ qua'); }, 2000);
         }
     }
 });
 
-// Render Web Service
-app.get('/', (req, res) => res.send('Bot Vua Tiếng Việt đang chạy 24/7 m ơi!'));
+app.get('/', (req, res) => res.send('Bot live!'));
 app.listen(process.env.PORT || 3000);
-
 loadDict().then(() => client.login(process.env.DISCORD_TOKEN));
