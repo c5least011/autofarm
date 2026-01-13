@@ -10,7 +10,8 @@ const OWNER_ID = '1436539795340922922';
 const NEKO_ID = '1248205177589334026';
 let isRunning = false;
 let dictionary = new Set();
-let failCount = 0; // Bộ đếm số lần không giải được
+// Dùng Map để lưu failCount riêng cho từng Channel ID
+let channelFailCounts = new Map(); 
 
 const SOURCES = [
     'https://raw.githubusercontent.com/c5least011/botgoiynoitu/refs/heads/main/data.json',
@@ -21,7 +22,7 @@ const SOURCES = [
 ];
 
 async function loadDict() {
-    console.log('--- Quét kho vũ khí ---');
+    console.log('--- Quét kho vũ khí đa kênh ---');
     for (const url of SOURCES) {
         try {
             const res = await axios.get(url, { responseType: 'text' });
@@ -59,8 +60,8 @@ client.on('messageCreate', async (msg) => {
     if (msg.author.id === OWNER_ID) {
         if (msg.content === '.start') { 
             isRunning = true; 
-            failCount = 0;
-            return msg.reply('ON!'); 
+            channelFailCounts.clear(); // Reset hết bộ đếm khi start lại
+            return msg.reply('Đa kênh ON!'); 
         }
         if (msg.content === '.stop') { 
             isRunning = false; 
@@ -80,25 +81,26 @@ client.on('messageCreate', async (msg) => {
         const lengthMatch = content.match(/\(gồm (\d+) ký tự\)/);
 
         if (charMatch && lengthMatch) {
+            const channelId = msg.channel.id;
+            // Lấy failCount hiện tại của kênh này, nếu chưa có thì là 0
+            let currentFail = channelFailCounts.get(channelId) || 0;
             const answer = solve(charMatch[1], parseInt(lengthMatch[1]));
             
             if (answer) {
-                failCount = 0; // Giải được thì reset đếm
-                console.log(`Debug: ${charMatch[1]} -> ${answer}`);
+                channelFailCounts.set(channelId, 0); // Giải đc thì reset riêng kênh đó
+                console.log(`[${msg.channel.name}] Giải: ${answer}`);
                 setTimeout(() => { msg.channel.send(answer); }, 2000);
             } else {
-                failCount++; // Ko giải được thì tăng 1
-                console.log(`Debug: Không biết. Lần xịt: ${failCount}`);
+                currentFail++;
+                channelFailCounts.set(channelId, currentFail);
+                console.log(`[${msg.channel.name}] Xịt lần: ${currentFail}`);
                 
                 setTimeout(() => {
                     msg.channel.send('bỏ qua');
                     
-                    // Nếu xịt đủ 5 lần thì nhắn start!
-                    if (failCount >= 5) {
-                        failCount = 0;
-                        setTimeout(() => {
-                            msg.channel.send('start!');
-                        }, 2000);
+                    if (currentFail >= 5) {
+                        channelFailCounts.set(channelId, 0);
+                        setTimeout(() => { msg.channel.send('start!'); }, 2000);
                     }
                 }, 1500);
             }
@@ -106,6 +108,6 @@ client.on('messageCreate', async (msg) => {
     }
 });
 
-app.get('/', (req, res) => res.send('Bot live!'));
+app.get('/', (req, res) => res.send('Bot Vua Tiếng Việt Đa Kênh!'));
 app.listen(process.env.PORT || 3000);
 loadDict().then(() => client.login(process.env.DISCORD_TOKEN));
