@@ -1,8 +1,10 @@
 require('dotenv').config();
-
 const { Client } = require('discord.js-selfbot-v13');
 const axios = require('axios');
+const express = require('express');
+
 const client = new Client({ checkUpdate: false });
+const app = express();
 
 const OWNER_ID = '1436539795340922922';
 const NEKO_ID = '1248205177589334026';
@@ -13,86 +15,88 @@ const SOURCES = [
     'https://raw.githubusercontent.com/c5least011/botgoiynoitu/refs/heads/main/data.json',
     'https://raw.githubusercontent.com/lvdat/phobo-contribute-words/refs/heads/main/accepted-words.txt',
     'https://raw.githubusercontent.com/undertheseanlp/dictionary/refs/heads/wiktionary/dictionary/words.txt',
-    'https://raw.githubusercontent.com/undertheseanlp/dictionary/refs/heads/tudientv/dictionary/words.txt'
+    'https://raw.githubusercontent.com/undertheseanlp/dictionary/refs/heads/tudientv/dictionary/words.txt',
+    'https://raw.githubusercontent.com/undertheseanlp/dictionary/refs/heads/hongocduc/dictionary/words.txt'
 ];
 
 async function loadDict() {
-    console.log('--- Dang quet kho vu khi ---');
+    console.log('--- Đang quét kho vũ khí hạng nặng ---');
     for (const url of SOURCES) {
         try {
-            const res = await axios.get(url);
-            let rawData = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
-            let cleanData = rawData.replace(/“|”/g, '"');
-            let words = [];
-            try { words = JSON.parse(cleanData); } catch (e) { words = cleanData.split(/\r?\n/); }
+            const res = await axios.get(url, { responseType: 'text' });
+            // Tách từng dòng để xử lý y hệt con bot cũ của m
+            const lines = res.data.split(/\r?\n/);
+            
+            lines.forEach(line => {
+                if (!line.trim()) return;
+                
+                try {
+                    // Ưu tiên parse kiểu JSON từng dòng (đúng định dạng ảnh m gửi)
+                    const obj = JSON.parse(line.replace(/“|”/g, '"'));
+                    let text = obj.text || obj.word || ""; 
+                    if (typeof obj === 'string') text = obj; // Trường hợp JSON array đơn giản
 
-            if (Array.isArray(words)) {
-                words.forEach(w => {
-                    let text = typeof w === 'string' ? w : (w.text || "");
-                    let clean = text.trim().toLowerCase().replace(/\s+/g, '');
-                    if (clean.length > 1) dictionary.add(clean);
-                });
-            }
-        } catch (e) { console.log(`Loi source: ${url}`); }
+                    if (text) {
+                        let clean = text.trim().toLowerCase();
+                        if (clean.length > 1) dictionary.add(clean);
+                    }
+                } catch (e) {
+                    // Nếu k phải JSON (file txt thuần) thì lấy nguyên dòng
+                    let clean = line.trim().toLowerCase();
+                    if (clean.length > 1 && !clean.startsWith('{')) dictionary.add(clean);
+                }
+            });
+            console.log(`✅ Đã nạp xong source: ${url.split('/').pop()}`);
+        } catch (err) { console.log(`❌ Lỗi nạp source: ${url}`); }
     }
-    console.log(`✅ Kho tu: ${dictionary.size} tu san sang!`);
+    console.log(`🚀 Tổng kho: ${dictionary.size} từ. Đã sẵn sàng thông nòng!`);
 }
 
 function solve(chars, length) {
-    const sortedChars = chars.toLowerCase().replace(/\//g, '').split('').sort().join('');
+    // Neko gửi ề/n/n/ô/i/đ -> gộp lại thành ennôiđ -> sort alphabet
+    const targetSorted = chars.replace(/\//g, '').toLowerCase().split('').sort().join('');
+    
     for (let word of dictionary) {
-        if (word.length === length) {
-            if (word.split('').sort().join('') === sortedChars) return word;
+        // Vua Tiếng Việt tính độ dài k kèm dấu cách
+        let noSpace = word.replace(/\s+/g, '');
+        if (noSpace.length === length) {
+            if (noSpace.split('').sort().join('') === targetSorted) return word;
         }
     }
     return null;
 }
 
-client.on('ready', () => console.log(`Bot Vua Tieng Viet (Embed Fix) ON: ${client.user.tag}`));
-
 client.on('messageCreate', async (msg) => {
-    // Bam .start / .stop de dieu khien
     if (msg.author.id === OWNER_ID) {
-        if (msg.content === '.start') { isRunning = true; return msg.reply('On r nhe!'); }
-        if (msg.content === '.stop') { isRunning = false; return msg.reply('Off r!'); }
+        if (msg.content === '.start') { isRunning = true; return msg.reply('Vua Tiếng Việt START!'); }
+        if (msg.content === '.stop') { isRunning = false; return msg.reply('Vua Tiếng Việt STOP!'); }
     }
 
     if (!isRunning) return;
 
-    // Check ca tin nhan thuong va Embed
     let content = msg.content;
     if (msg.embeds.length > 0 && msg.embeds[0].description) {
         content = msg.embeds[0].description;
     }
 
+    // Regex hốt cụm ký tự (bao gồm cả dấu tiếng Việt)
     if (msg.author.id === NEKO_ID && content.includes('Từ cần đoán:')) {
-        try {
-            // Regex lay chuoi ki tu e/n/n/o/i/d
-            const charMatch = content.match(/Từ cần đoán: ([^ \n(]+)/i);
-            const lengthMatch = content.match(/\(gồm (\d+) ký tự\)/);
+        const charMatch = content.match(/Từ cần đoán: ([^\s\n(]+)/i);
+        const lengthMatch = content.match(/\(gồm (\d+) ký tự\)/);
 
-            if (charMatch && lengthMatch) {
-                const chars = charMatch[1];
-                const length = parseInt(lengthMatch[1]);
-                
-                console.log(`Dang giai: ${chars}`);
-                const answer = solve(chars, length);
-
-                setTimeout(() => {
-                    if (answer) {
-                        msg.channel.send(answer);
-                    } else {
-                        msg.channel.send('bỏ qua');
-                    }
-                }, 1500);
-            }
-        } catch (err) { console.log('Loi doc Embed!'); }
+        if (charMatch && lengthMatch) {
+            const answer = solve(charMatch[1], parseInt(lengthMatch[1]));
+            console.log(`[Giải đố] Ký tự: ${charMatch[1]} -> Kết quả: ${answer || 'Chịu'}`);
+            
+            setTimeout(() => {
+                msg.channel.send(answer || 'bỏ qua');
+            }, 1000 + Math.random() * 1000);
+        }
     }
 });
 
-loadDict().then(() => {
-    client.login(process.env.DISCORD_TOKEN);
-});const express = require('express');
-const app = express();
-app.get('/', (req, res) => res.send('Bot đang chạy m ơi!'));
+// Render Web Service
+app.get('/', (req, res) => res.send('Bot Vua Tiếng Việt đang chạy 24/7 m ơi!'));
 app.listen(process.env.PORT || 3000);
+
+loadDict().then(() => client.login(process.env.DISCORD_TOKEN));
