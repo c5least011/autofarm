@@ -8,9 +8,7 @@ const app = express();
 
 const OWNER_ID = '1436539795340922922';
 const NEKO_ID = '1248205177589334026';
-
-// Lưu trạng thái chạy và số lần xịt riêng cho từng Channel ID
-// Cấu trúc: { channelId: { isRunning: true/false, failCount: 0 } }
+let dictionary = new Set();
 let channelData = new Map();
 
 const SOURCES = [
@@ -43,8 +41,6 @@ async function loadDict() {
     console.log(`✅ Tổng: ${dictionary.size} từ.`);
 }
 
-let dictionary = new Set();
-
 function solve(chars, length) {
     const cleanChars = chars.replace(/\*/g, '').replace(/\//g, '').toLowerCase();
     const targetSorted = cleanChars.split('').sort().join('');
@@ -61,27 +57,24 @@ function solve(chars, length) {
 client.on('messageCreate', async (msg) => {
     const channelId = msg.channel.id;
 
-    // Khởi tạo data cho kênh nếu chưa có
     if (!channelData.has(channelId)) {
         channelData.set(channelId, { isRunning: false, failCount: 0 });
     }
 
     let data = channelData.get(channelId);
 
-    // Lệnh điều khiển riêng cho từng kênh
     if (msg.author.id === OWNER_ID) {
         if (msg.content === '.start') { 
             data.isRunning = true;
             data.failCount = 0;
-            return msg.reply(`Đã start riêng cho kênh này (ID: ${channelId}) k!`); 
+            return msg.reply(`Kênh ${channelId} ON!`); 
         }
         if (msg.content === '.stop') { 
             data.isRunning = false;
-            return msg.reply('Đã stop kênh này!'); 
+            return msg.reply('Kênh này OFF!'); 
         }
     }
 
-    // Nếu kênh này chưa start thì k làm gì cả
     if (!data.isRunning) return;
 
     let content = msg.content;
@@ -108,8 +101,11 @@ client.on('messageCreate', async (msg) => {
                     msg.channel.send('bỏ qua');
                     
                     if (data.failCount >= 5) {
-                        data.failCount = 0;
-                        setTimeout(() => { msg.channel.send('start!'); }, 2000);
+                        data.failCount = 0; // Reset đếm
+                        console.log(`[${msg.channel.name}] Đợi 1p gửi start!...`);
+                        setTimeout(() => { 
+                            msg.channel.send('start!'); 
+                        }, 60000); // 1 phút = 60.000ms
                     }
                 }, 1500);
             }
@@ -117,6 +113,6 @@ client.on('messageCreate', async (msg) => {
     }
 });
 
-app.get('/', (req, res) => res.send('Bot Vua Tiếng Việt - Start Từng Kênh!'));
+app.get('/', (req, res) => res.send('Bot live!'));
 app.listen(process.env.PORT || 3000);
 loadDict().then(() => client.login(process.env.DISCORD_TOKEN));
