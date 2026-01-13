@@ -67,11 +67,11 @@ client.on('messageCreate', async (msg) => {
         if (msg.content === '.start') { 
             data.isRunning = true;
             data.failCount = 0;
-            return msg.reply(`Kênh ${channelId} ON!`); 
+            return msg.reply(`Kênh ${channelId} đã được kích hoạt!`); 
         }
         if (msg.content === '.stop') { 
             data.isRunning = false;
-            return msg.reply('Kênh này OFF!'); 
+            return msg.reply('Đã dừng farm ở kênh này.'); 
         }
     }
 
@@ -90,22 +90,24 @@ client.on('messageCreate', async (msg) => {
             const answer = solve(charMatch[1], parseInt(lengthMatch[1]));
             
             if (answer) {
+                // ĐÚNG LÀ RECOUNT NGAY LẬP TỨC
                 data.failCount = 0; 
-                console.log(`[${msg.channel.name}] Giải: ${answer}`);
+                console.log(`[${msg.channel.name}] ĐÚNG -> Recount! Đáp án: ${answer}`);
                 setTimeout(() => { msg.channel.send(answer); }, 2000);
             } else {
+                // SAI/KHÔNG BIẾT THÌ MỚI CỘNG DỒN
                 data.failCount++;
-                console.log(`[${msg.channel.name}] Xịt lần: ${data.failCount}`);
+                console.log(`[${msg.channel.name}] Xịt lần: ${data.failCount}/5`);
                 
                 setTimeout(() => {
                     msg.channel.send('bỏ qua');
                     
                     if (data.failCount >= 5) {
-                        data.failCount = 0; // Reset đếm
-                        console.log(`[${msg.channel.name}] Đợi 1p gửi start!...`);
+                        data.failCount = 0; // Reset để đợi chuỗi 5 lần mới tiếp theo
+                        console.log(`[${msg.channel.name}] Đã xịt 5 lần liên tiếp. Đợi 1p...`);
                         setTimeout(() => { 
                             msg.channel.send('start!'); 
-                        }, 60000); // 1 phút = 60.000ms
+                        }, 60000);
                     }
                 }, 1500);
             }
@@ -113,6 +115,7 @@ client.on('messageCreate', async (msg) => {
     }
 });
 
-app.get('/', (req, res) => res.send('Bot live!'));
+app.get('/', (req, res) => res.send('Bot Vua Tiếng Việt - Recount Logic Ready!'));
 app.listen(process.env.PORT || 3000);
+
 loadDict().then(() => client.login(process.env.DISCORD_TOKEN));
