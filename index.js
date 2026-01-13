@@ -8,10 +8,10 @@ const app = express();
 
 const OWNER_ID = '1436539795340922922';
 const NEKO_ID = '1248205177589334026';
-let isRunning = false;
-let dictionary = new Set();
-// Dùng Map để lưu failCount riêng cho từng Channel ID
-let channelFailCounts = new Map(); 
+
+// Lưu trạng thái chạy và số lần xịt riêng cho từng Channel ID
+// Cấu trúc: { channelId: { isRunning: true/false, failCount: 0 } }
+let channelData = new Map();
 
 const SOURCES = [
     'https://raw.githubusercontent.com/c5least011/botgoiynoitu/refs/heads/main/data.json',
@@ -22,7 +22,7 @@ const SOURCES = [
 ];
 
 async function loadDict() {
-    console.log('--- Quét kho vũ khí đa kênh ---');
+    console.log('--- Quét kho vũ khí ---');
     for (const url of SOURCES) {
         try {
             const res = await axios.get(url, { responseType: 'text' });
@@ -43,6 +43,8 @@ async function loadDict() {
     console.log(`✅ Tổng: ${dictionary.size} từ.`);
 }
 
+let dictionary = new Set();
+
 function solve(chars, length) {
     const cleanChars = chars.replace(/\*/g, '').replace(/\//g, '').toLowerCase();
     const targetSorted = cleanChars.split('').sort().join('');
@@ -57,19 +59,30 @@ function solve(chars, length) {
 }
 
 client.on('messageCreate', async (msg) => {
+    const channelId = msg.channel.id;
+
+    // Khởi tạo data cho kênh nếu chưa có
+    if (!channelData.has(channelId)) {
+        channelData.set(channelId, { isRunning: false, failCount: 0 });
+    }
+
+    let data = channelData.get(channelId);
+
+    // Lệnh điều khiển riêng cho từng kênh
     if (msg.author.id === OWNER_ID) {
         if (msg.content === '.start') { 
-            isRunning = true; 
-            channelFailCounts.clear(); // Reset hết bộ đếm khi start lại
-            return msg.reply('Đa kênh ON!'); 
+            data.isRunning = true;
+            data.failCount = 0;
+            return msg.reply(`Đã start riêng cho kênh này (ID: ${channelId}) k!`); 
         }
         if (msg.content === '.stop') { 
-            isRunning = false; 
-            return msg.reply('OFF!'); 
+            data.isRunning = false;
+            return msg.reply('Đã stop kênh này!'); 
         }
     }
 
-    if (!isRunning) return;
+    // Nếu kênh này chưa start thì k làm gì cả
+    if (!data.isRunning) return;
 
     let content = msg.content;
     if (msg.embeds.length > 0 && msg.embeds[0].description) {
@@ -81,25 +94,21 @@ client.on('messageCreate', async (msg) => {
         const lengthMatch = content.match(/\(gồm (\d+) ký tự\)/);
 
         if (charMatch && lengthMatch) {
-            const channelId = msg.channel.id;
-            // Lấy failCount hiện tại của kênh này, nếu chưa có thì là 0
-            let currentFail = channelFailCounts.get(channelId) || 0;
             const answer = solve(charMatch[1], parseInt(lengthMatch[1]));
             
             if (answer) {
-                channelFailCounts.set(channelId, 0); // Giải đc thì reset riêng kênh đó
+                data.failCount = 0; 
                 console.log(`[${msg.channel.name}] Giải: ${answer}`);
                 setTimeout(() => { msg.channel.send(answer); }, 2000);
             } else {
-                currentFail++;
-                channelFailCounts.set(channelId, currentFail);
-                console.log(`[${msg.channel.name}] Xịt lần: ${currentFail}`);
+                data.failCount++;
+                console.log(`[${msg.channel.name}] Xịt lần: ${data.failCount}`);
                 
                 setTimeout(() => {
                     msg.channel.send('bỏ qua');
                     
-                    if (currentFail >= 5) {
-                        channelFailCounts.set(channelId, 0);
+                    if (data.failCount >= 5) {
+                        data.failCount = 0;
                         setTimeout(() => { msg.channel.send('start!'); }, 2000);
                     }
                 }, 1500);
@@ -108,6 +117,6 @@ client.on('messageCreate', async (msg) => {
     }
 });
 
-app.get('/', (req, res) => res.send('Bot Vua Tiếng Việt Đa Kênh!'));
+app.get('/', (req, res) => res.send('Bot Vua Tiếng Việt - Start Từng Kênh!'));
 app.listen(process.env.PORT || 3000);
 loadDict().then(() => client.login(process.env.DISCORD_TOKEN));
