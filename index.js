@@ -103,7 +103,7 @@ client.on('messageCreate', async (msg) => {
                 if (data.timer) clearTimeout(data.timer);
                 data.timer = setTimeout(() => {
                     sendNextAnswer(msg.channel, data);
-                }, 4000);
+                }, 3000);
             } else {
                 setTimeout(() => msg.channel.send('bỏ qua'), 1500);
             }
