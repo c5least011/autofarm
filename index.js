@@ -46,7 +46,6 @@ function findAllAnswers(chars, length) {
     const cleanChars = chars.replace(/\*/g, '').replace(/\//g, '').toLowerCase();
     const targetSorted = cleanChars.split('').sort().join('');
     let matches = [];
-    
     for (let word of dictionary) {
         let noSpace = word.replace(/\s+/g, '');
         if (noSpace.length === length) {
@@ -60,14 +59,37 @@ function findAllAnswers(chars, length) {
 
 client.on('messageCreate', async (msg) => {
     const chId = msg.channel.id;
-    if (!channelData.has(chId)) channelData.set(chId, { isRunning: false, currentAnswers: [], timer: null });
+    if (!channelData.has(chId)) {
+        channelData.set(chId, { 
+            isRunning: false, 
+            currentAnswers: [], 
+            timer: null, 
+            lastMsgTime: Date.now(),
+            checkInterval: null 
+        });
+    }
     let data = channelData.get(chId);
-
+    data.lastMsgTime = Date.now();
     if (msg.author.id === OWNER_ID) {
-        if (msg.content === '.start') { data.isRunning = true; return msg.reply('ON!'); }
+        if (msg.content === '.start') { 
+            data.isRunning = true; 
+            if (!data.checkInterval) {
+                data.checkInterval = setInterval(() => {
+                    if (data.isRunning && Date.now() - data.lastMsgTime >= 600000) {
+                        msg.channel.send('start!');
+                        data.lastMsgTime = Date.now();
+                    }
+                }, 30000);
+            }
+            return msg.reply('ON!'); 
+        }
         if (msg.content === '.stop') { 
             data.isRunning = false; 
             if (data.timer) clearTimeout(data.timer);
+            if (data.checkInterval) {
+                clearInterval(data.checkInterval);
+                data.checkInterval = null;
+            }
             return msg.reply('OFF!'); 
         }
     }
@@ -113,13 +135,10 @@ client.on('messageCreate', async (msg) => {
 
 function sendNextAnswer(channel, data) {
     if (data.currentAnswers.length === 0 || !data.isRunning) return;
-
     const word = data.currentAnswers.shift();
     channel.send(word);
-
     data.timer = setTimeout(() => {
         if (data.currentAnswers.length > 0) {
-            console.log(`[${channel.name}] 4s im lặng, vả tiếp từ mới...`);
             sendNextAnswer(channel, data);
         }
     }, 4000); 
