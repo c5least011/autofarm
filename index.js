@@ -143,15 +143,10 @@ function sendNextAnswer(channel, data) {
         }
     }, 2000); 
 }
+
+app.get('/', (req, res) => res.send('Bot ok'));
+app.listen(3000, () => {
+    console.log('Server is running on port 3000');
+});
+
 loadDict().then(() => client.login(process.env.DISCORD_TOKEN));
-
-const app = express()
-const port = process.env.PORT || 4000
-
-app.get('/', (req, res) => {
-  res.send('ezggsb')
-})
-
-app.listen(port, () => {
-  console.log(`ezgg listening on port ${port}`)
-})
