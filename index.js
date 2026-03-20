@@ -21,7 +21,7 @@ const SOURCES = [
 ];
 
 async function loadDict() {
-    console.log('--- Đang nạp kho vũ khí ---');
+    console.log('Đang load kho từ');
     for (const url of SOURCES) {
         try {
             const res = await axios.get(url, { responseType: 'text' });
@@ -125,7 +125,7 @@ client.on('messageCreate', async (msg) => {
                 if (data.timer) clearTimeout(data.timer);
                 data.timer = setTimeout(() => {
                     sendNextAnswer(msg.channel, data);
-                }, 3000);
+                }, 1500);
             } else {
                 setTimeout(() => msg.channel.send('bỏ qua'), 1500);
             }
@@ -141,9 +141,8 @@ function sendNextAnswer(channel, data) {
         if (data.currentAnswers.length > 0) {
             sendNextAnswer(channel, data);
         }
-    }, 4000); 
+    }, 2000); 
 }
 
 app.get('/', (req, res) => res.send('Bot ok'));
-app.listen(process.env.PORT || 3000);
 loadDict().then(() => client.login(process.env.DISCORD_TOKEN));
